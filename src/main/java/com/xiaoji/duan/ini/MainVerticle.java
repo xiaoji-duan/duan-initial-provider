@@ -162,7 +162,18 @@ public class MainVerticle extends AbstractVerticle {
 			if (handler.succeeded()) {
 				Buffer result = handler.result();
 				
-				JsonArray parameters = new JsonArray(result);
+				JsonArray parameters = null;
+				
+				if (result == null || result.length() < 2) {
+					parameters = new JsonArray();
+				} else {
+					try {
+						parameters = result.toJsonArray();
+					} catch(Exception e) {
+						e.printStackTrace();
+						parameters = new JsonArray();
+					}
+				}
 				
 				future.complete(new JsonObject()
 						.put("tablename", tablename)
