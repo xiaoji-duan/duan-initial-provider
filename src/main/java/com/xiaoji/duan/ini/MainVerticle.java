@@ -13,6 +13,7 @@ import org.apache.commons.lang3.StringUtils;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
+import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.HttpServerOptions;
 import io.vertx.core.json.JsonArray;
@@ -30,12 +31,16 @@ public class MainVerticle extends AbstractVerticle {
 
 	@Override
 	public void start(Future<Void> startFuture) throws Exception {
-		JsonObject config = new JsonObject();
-		config.put("host", "mongodb");
-		config.put("port", 27017);
-		config.put("keepAlive", true);
-		mongodb = MongoClient.createShared(vertx, config);
-
+		
+		// 可以配置通过mongodb或者file获取配置参数
+		if ("mongodb".equals(config().getString("source", "mongodb"))) {
+			JsonObject config = new JsonObject();
+			config.put("host", "mongodb");
+			config.put("port", 27017);
+			config.put("keepAlive", true);
+			mongodb = MongoClient.createShared(vertx, config);
+		}
+		
 		init();
 		
 		Router router = Router.router(vertx);
@@ -109,7 +114,13 @@ public class MainVerticle extends AbstractVerticle {
 			Future<JsonObject> future = Future.future();
 			futures.add(future);
 
-			queryparams(future, productid, productversion, tablename);
+			if ("mongodb".equals(config().getString("source", "mongodb"))) {
+				queryparams(future, productid, productversion, tablename);
+			}
+
+			if ("file".equals(config().getString("source", "mongodb"))) {
+				queryparamsfromfile(future, productid, productversion, tablename);
+			}
 		}
 		
 		if (futures.size() > 0) {
@@ -143,6 +154,24 @@ public class MainVerticle extends AbstractVerticle {
 			ctx.response().putHeader("Content-Type", "application/json;charset=UTF-8").end(ret.encode());
 		}
 		
+	}
+	
+	private void queryparamsfromfile(Future<JsonObject> future, String productid, String productversion, String tablename) {
+		String iniroot = config().getString("source-path", "/opt/duan/ini");
+		vertx.fileSystem().readFile(iniroot + "/" + productid + "/" + tablename + ".json", handler -> {
+			if (handler.succeeded()) {
+				Buffer result = handler.result();
+				
+				JsonArray parameters = new JsonArray(result);
+				
+				future.complete(new JsonObject()
+						.put("tablename", tablename)
+						.put("tablevalues", parameters)
+						);
+			} else {
+				future.fail(handler.cause());
+			}
+		});
 	}
 	
 	private void queryparams(Future<JsonObject> future, String productid, String productversion, String tablename) {
