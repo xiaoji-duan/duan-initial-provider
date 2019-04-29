@@ -108,6 +108,13 @@ public class MainVerticle extends AbstractVerticle {
 			return;
 		}
 		
+		String debug = ctx.request().getParam("debug");
+		Boolean isDebug = false;
+
+		if (!StringUtils.isEmpty(debug) && "true".equals(debug)) {
+			isDebug = true;
+		}
+		
 		List<Future<JsonObject>> futures = new LinkedList<>();
 		
 		for (String tablename : tablenames) {
@@ -115,11 +122,11 @@ public class MainVerticle extends AbstractVerticle {
 			futures.add(future);
 
 			if ("mongodb".equals(config().getString("source", "mongodb"))) {
-				queryparams(future, productid, productversion, tablename);
+				queryparams(future, productid, productversion, tablename, isDebug);
 			}
 
 			if ("file".equals(config().getString("source", "mongodb"))) {
-				queryparamsfromfile(future, productid, productversion, tablename);
+				queryparamsfromfile(future, productid, productversion, tablename, isDebug);
 			}
 		}
 		
@@ -156,9 +163,15 @@ public class MainVerticle extends AbstractVerticle {
 		
 	}
 	
-	private void queryparamsfromfile(Future<JsonObject> future, String productid, String productversion, String tablename) {
+	private void queryparamsfromfile(Future<JsonObject> future, String productid, String productversion, String tablename, Boolean isDebug) {
 		String iniroot = config().getString("source-path", "/opt/duan/ini");
-		vertx.fileSystem().readFile(iniroot + "/" + productid + "/" + tablename + ".json", handler -> {
+		String iniFile = iniroot + "/" + productid + "/" + tablename + ".json";
+
+		if (isDebug) {
+			iniFile = iniroot + "/debug/" + productid + "/" + tablename + ".json";
+		}
+		
+		vertx.fileSystem().readFile(iniFile, handler -> {
 			if (handler.succeeded()) {
 				Buffer result = handler.result();
 				
@@ -185,7 +198,7 @@ public class MainVerticle extends AbstractVerticle {
 		});
 	}
 	
-	private void queryparams(Future<JsonObject> future, String productid, String productversion, String tablename) {
+	private void queryparams(Future<JsonObject> future, String productid, String productversion, String tablename, Boolean isDebug) {
 		mongodb.find("ini_" + productid + "_" + tablename, new JsonObject(), find -> {
 			if (find.succeeded()) {
 				future.complete(new JsonObject()
