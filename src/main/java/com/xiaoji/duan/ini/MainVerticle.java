@@ -115,6 +115,12 @@ public class MainVerticle extends AbstractVerticle {
 			isDebug = true;
 		}
 		
+		String tag = ctx.request().getParam("tag");
+
+		if (!StringUtils.isEmpty(tag) && !"mwxing".equals(tag)) {
+			tag = "mwxing";
+		}
+		
 		List<Future<JsonObject>> futures = new LinkedList<>();
 		
 		for (String tablename : tablenames) {
@@ -122,11 +128,11 @@ public class MainVerticle extends AbstractVerticle {
 			futures.add(future);
 
 			if ("mongodb".equals(config().getString("source", "mongodb"))) {
-				queryparams(future, productid, productversion, tablename, isDebug);
+				queryparams(future, productid, productversion, tablename, isDebug, tag);
 			}
 
 			if ("file".equals(config().getString("source", "mongodb"))) {
-				queryparamsfromfile(future, productid, productversion, tablename, isDebug);
+				queryparamsfromfile(future, productid, productversion, tablename, isDebug, tag);
 			}
 		}
 		
@@ -163,12 +169,21 @@ public class MainVerticle extends AbstractVerticle {
 		
 	}
 	
-	private void queryparamsfromfile(Future<JsonObject> future, String productid, String productversion, String tablename, Boolean isDebug) {
+	private void queryparamsfromfile(Future<JsonObject> future, String productid, String productversion, String tablename, Boolean isDebug, String tag) {
 		String iniroot = config().getString("source-path", "/opt/duan/ini");
 		String iniFile = iniroot + "/" + productid + "/" + tablename + ".json";
+		
+		if (!StringUtils.isEmpty(tag)) {
+			iniFile = iniroot + "/" + tag + "/" + productid + "/" + tablename + ".json";
 
-		if (isDebug) {
-			iniFile = iniroot + "/debug/" + productid + "/" + tablename + ".json";
+			if (isDebug) {
+				iniFile = iniroot + "/" + tag + "/" + "/debug/" + productid + "/" + tablename + ".json";
+			}
+		} else {
+
+			if (isDebug) {
+				iniFile = iniroot + "/debug/" + productid + "/" + tablename + ".json";
+			}
 		}
 		
 		vertx.fileSystem().readFile(iniFile, handler -> {
@@ -198,7 +213,7 @@ public class MainVerticle extends AbstractVerticle {
 		});
 	}
 	
-	private void queryparams(Future<JsonObject> future, String productid, String productversion, String tablename, Boolean isDebug) {
+	private void queryparams(Future<JsonObject> future, String productid, String productversion, String tablename, Boolean isDebug, String tag) {
 		mongodb.find("ini_" + productid + "_" + tablename, new JsonObject(), find -> {
 			if (find.succeeded()) {
 				future.complete(new JsonObject()
